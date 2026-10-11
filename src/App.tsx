@@ -7,6 +7,7 @@ import type { PortfolioItem } from './portfolio'
 import { drawings } from './linework'
 
 gsap.registerPlugin(ScrollTrigger)
+let activeChapter: HTMLElement | null = null
 
 function Arrow({ diagonal = false }: { diagonal?: boolean }) {
   return <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" className={diagonal ? 'icon diagonal' : 'icon'}><path d="M4 12h15m-6-6 6 6-6 6" stroke="currentColor" strokeWidth="1.4" /></svg>
@@ -23,7 +24,7 @@ function AssetImage(props: ImgHTMLAttributes<HTMLImageElement>) {
 }
 function Blueprint({ id }: { id: string }) {
   const drawing = drawings[id]
-  return <svg className="blueprint" viewBox="0 0 1440 1440" preserveAspectRatio="xMidYMid slice" aria-hidden="true" fill="none">
+  return <svg className="blueprint" viewBox="0 0 1440 1440" preserveAspectRatio="xMidYMid meet" aria-hidden="true" fill="none">
     {Object.entries(drawing).map(([group, paths]) => <g key={group} className={group}>{paths.map((d, i) => <path key={i} d={d} pathLength="1" vectorEffect="non-scaling-stroke" />)}</g>)}
   </svg>
 }
@@ -45,7 +46,7 @@ function Chapter({ story, index, onOpen, motionPaused }: { story: typeof stories
     const node = root.current!
     const mm = gsap.matchMedia()
     mm.add({ desktop: '(min-width: 900px)', motion: '(prefers-reduced-motion: no-preference)', reduce: '(prefers-reduced-motion: reduce)' }, context => {
-      const { desktop, motion } = context.conditions!
+      const { motion } = context.conditions!
       const paths = node.querySelectorAll('.blueprint path')
       const render = node.querySelector('.chapter-render')
       const svg = node.querySelector('.blueprint')
@@ -56,29 +57,60 @@ function Chapter({ story, index, onOpen, motionPaused }: { story: typeof stories
         gsap.set(svg, { opacity: mode === 'drawing' ? 1 : 0 })
         gsap.set(bar, { scaleX: 1 })
         setStage(mode === 'drawing' ? 1 : 3)
-        if (desktop && motion && !motionPaused) {
-          const pin = ScrollTrigger.create({ trigger: node, start: 'top 88px', end: '+=240', pin: node.querySelector('.chapter-inner'), invalidateOnRefresh: true })
-          return () => pin.kill()
-        }
         return
       }
       gsap.set(paths, { strokeDasharray: 1, strokeDashoffset: 1 })
       gsap.set(render, { opacity: 0, clipPath: 'inset(100% 0% 0% 0%)' })
       gsap.set(svg, { opacity: 1 })
       gsap.set(bar, { scaleX: 0 })
-      const timeline = gsap.timeline({ scrollTrigger: {
-        trigger: node, start: desktop ? 'top 88px' : 'top 75%', end: desktop ? '+=240' : '+=160',
-        pin: desktop ? node.querySelector('.chapter-inner') : false,
-        scrub: .12, invalidateOnRefresh: true,
-        onUpdate: self => setStage(self.progress < .12 ? 0 : self.progress < .24 ? 1 : self.progress < .6 ? 2 : 3),
+      let played = false
+      let holding = false
+      let anchor = 0
+      const prevent = (event: Event) => event.preventDefault()
+      const keepPosition = () => { if (holding) window.scrollTo({ top: anchor, behavior: 'instant' }) }
+      const key = (event: KeyboardEvent) => {
+        if (event.key === 'Escape') timeline.progress(1)
+        else if (['ArrowDown', 'ArrowUp', 'PageDown', 'PageUp', 'Home', 'End', ' '].includes(event.key) && !(event.target instanceof HTMLButtonElement)) event.preventDefault()
+      }
+      const release = () => {
+        holding = false
+        if (activeChapter === node) activeChapter = null
+        window.removeEventListener('wheel', prevent)
+        window.removeEventListener('touchmove', prevent)
+        window.removeEventListener('scroll', keepPosition)
+        window.removeEventListener('keydown', key)
+      }
+      // An explicit navigation or viewer action can always bypass the short hold.
+      const bypass = (event: MouseEvent) => { if (holding && (event.target as Element).closest('a, button')) timeline.progress(1) }
+      const timeline = gsap.timeline({ paused: true, onComplete: release, onUpdate: () => {
+        const progress = timeline.progress()
+        setStage(progress < .3 ? 0 : progress < .6 ? 1 : progress < .95 ? 2 : 3)
       } })
-      timeline.to(node.querySelectorAll('.silhouette path'), { strokeDashoffset: 0, duration: .12, stagger: { amount: .03 }, ease: 'none' }, 0)
-        .to(node.querySelectorAll('.structure path'), { strokeDashoffset: 0, duration: .1, stagger: { amount: .03 }, ease: 'none' }, .08)
-        .to(node.querySelectorAll('.facade path'), { strokeDashoffset: 0, duration: .1, stagger: { amount: .03 }, ease: 'none' }, .14)
-        .to(render, { opacity: 1, clipPath: 'inset(0% 0% 0% 0%)', duration: .36, ease: 'none' }, .24)
-        .to(svg, { opacity: 0, duration: .15, ease: 'none' }, .45)
-        .to(bar, { scaleX: 1, duration: 1, ease: 'none' }, 0)
-      return () => timeline.kill()
+      timeline.to(node.querySelectorAll('.silhouette path'), { strokeDashoffset: 0, duration: .55, stagger: { amount: .08 }, ease: 'none' }, 0)
+        .to(node.querySelectorAll('.structure path'), { strokeDashoffset: 0, duration: .5, stagger: { amount: .1 }, ease: 'none' }, .4)
+        .to(node.querySelectorAll('.facade path'), { strokeDashoffset: 0, duration: .45, stagger: { amount: .1 }, ease: 'none' }, .75)
+        .to(render, { opacity: 1, clipPath: 'inset(0% 0% 0% 0%)', duration: .65, ease: 'power1.inOut' }, 1.15)
+        .to(svg, { opacity: 0, duration: .35, ease: 'none' }, 1.45)
+        .to(bar, { scaleX: 1, duration: 1.8, ease: 'none' }, 0)
+      const trigger = ScrollTrigger.create({
+        trigger: node, start: () => `top ${document.querySelector('.site-header')!.getBoundingClientRect().height}px`, end: 'bottom top',
+        onEnter: self => {
+          if (played || activeChapter) return
+          played = true
+          activeChapter = node
+          anchor = self.start + 1
+          holding = true
+          keepPosition()
+          window.addEventListener('wheel', prevent, { passive: false })
+          window.addEventListener('touchmove', prevent, { passive: false })
+          window.addEventListener('scroll', keepPosition)
+          window.addEventListener('keydown', key)
+          timeline.play(0)
+        },
+      })
+      document.addEventListener('click', bypass)
+      return () => { release(); timeline.kill(); trigger.kill(); document.removeEventListener('click', bypass) }
+
     }, root)
     return () => mm.revert()
   }, [mode, story.id, motionPaused])
@@ -223,4 +255,6 @@ export default function App() {
     {modal && <MediaDialog modal={modal} onClose={() => setModal(null)} onNavigate={index => setModal({ kind: 'image', index })} />}
   </>
 }
+
+
 
