@@ -57,7 +57,7 @@ function Chapter({ story, index, onOpen, motionPaused }: { story: typeof stories
         gsap.set(bar, { scaleX: 1 })
         setStage(mode === 'drawing' ? 1 : 3)
         if (desktop && motion && !motionPaused) {
-          const pin = ScrollTrigger.create({ trigger: node, start: 'top 88px', end: '+=1600', pin: node.querySelector('.chapter-inner'), invalidateOnRefresh: true })
+          const pin = ScrollTrigger.create({ trigger: node, start: 'top 88px', end: '+=240', pin: node.querySelector('.chapter-inner'), invalidateOnRefresh: true })
           return () => pin.kill()
         }
         return
@@ -67,16 +67,16 @@ function Chapter({ story, index, onOpen, motionPaused }: { story: typeof stories
       gsap.set(svg, { opacity: 1 })
       gsap.set(bar, { scaleX: 0 })
       const timeline = gsap.timeline({ scrollTrigger: {
-        trigger: node, start: desktop ? 'top 88px' : 'top 75%', end: desktop ? '+=1600' : 'bottom 55%',
+        trigger: node, start: desktop ? 'top 88px' : 'top 75%', end: desktop ? '+=240' : '+=160',
         pin: desktop ? node.querySelector('.chapter-inner') : false,
-        scrub: .65, invalidateOnRefresh: true,
-        onUpdate: self => setStage(self.progress < .24 ? 0 : self.progress < .51 ? 1 : self.progress < .82 ? 2 : 3),
+        scrub: .12, invalidateOnRefresh: true,
+        onUpdate: self => setStage(self.progress < .12 ? 0 : self.progress < .24 ? 1 : self.progress < .6 ? 2 : 3),
       } })
-      timeline.to(node.querySelectorAll('.silhouette path'), { strokeDashoffset: 0, duration: .24, stagger: { amount: .08 }, ease: 'none' }, 0)
-        .to(node.querySelectorAll('.structure path'), { strokeDashoffset: 0, duration: .2, stagger: { amount: .09 }, ease: 'none' }, .18)
-        .to(node.querySelectorAll('.facade path'), { strokeDashoffset: 0, duration: .18, stagger: { amount: .1 }, ease: 'none' }, .31)
-        .to(render, { opacity: 1, clipPath: 'inset(0% 0% 0% 0%)', duration: .38, ease: 'none' }, .5)
-        .to(svg, { opacity: 0, duration: .2, ease: 'none' }, .73)
+      timeline.to(node.querySelectorAll('.silhouette path'), { strokeDashoffset: 0, duration: .12, stagger: { amount: .03 }, ease: 'none' }, 0)
+        .to(node.querySelectorAll('.structure path'), { strokeDashoffset: 0, duration: .1, stagger: { amount: .03 }, ease: 'none' }, .08)
+        .to(node.querySelectorAll('.facade path'), { strokeDashoffset: 0, duration: .1, stagger: { amount: .03 }, ease: 'none' }, .14)
+        .to(render, { opacity: 1, clipPath: 'inset(0% 0% 0% 0%)', duration: .36, ease: 'none' }, .24)
+        .to(svg, { opacity: 0, duration: .15, ease: 'none' }, .45)
         .to(bar, { scaleX: 1, duration: 1, ease: 'none' }, 0)
       return () => timeline.kill()
     }, root)
@@ -223,3 +223,4 @@ export default function App() {
     {modal && <MediaDialog modal={modal} onClose={() => setModal(null)} onNavigate={index => setModal({ kind: 'image', index })} />}
   </>
 }
+
